@@ -41,6 +41,8 @@ function meta(processor) {
 
 function extractMeta(inp) {
     var metaBody = inp.toString().split(/--[-]+[\r\n]*/);
+    while (metaBody.length < 3)
+        metaBody.unshift('');
     return {
         parts: metaBody,
         meta: yaml.safeLoad(metaBody[1]),
@@ -68,7 +70,7 @@ function layoutsOf(file) {
 // Recursive layout fetcher
 function getLayoutList(data) {
     data = extractMeta(data);
-    if (data.meta.layout) {
+    if (data.meta && data.meta.layout) {
         var thisone = 'src/layouts/' + data.meta.layout + '.html.jade';
         return fs.readFileAsync(thisone)
         .then(getLayoutList)
