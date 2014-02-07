@@ -13,16 +13,22 @@ Promise.promisifyAll(fs);
 // The default rule.
 exports.default = function(spec) {
     spec.with('src/documents/**/*.md').each(function(file) {
-        spec.rule(file, file.map(function(name) { 
-            return name.replace(/src\/documents\/(.+)\.md/, 'tmp/$1');
-        }), meta(markdown()));
+        spec.rule(file, 
+                  file.map(replacer(/src\/documents\/(.+)\.md/, 'tmp/$1')),
+                  meta(markdown()));
     });
     spec.with('tmp/**/*.html').each(function(file) {
-        spec.rule(file, layoutsOf(file), file.map(function(name) {
-            return name.replace('tmp/', 'tmp2/');
-        }), applyLayouts);
+        spec.rule(file, layoutsOf(file), 
+                  file.map(replacer('tmp/', 'tmp2/')), 
+                  applyLayouts);
     });
 
+}
+
+function replacer(match, replace) {
+    return function(string) {
+        return string.replace(match, replace);
+    }
 }
 
 function meta(processor) {
@@ -86,13 +92,12 @@ var jade = require('jade');
 function applyLayouts(inputs) {   
     var input = inputs[0].asBuffer(),
     initialDoc = input.then(extractMeta);
-    var complete = input.then(getLayoutList).reduce(function(step, flayout) {
-        return step.then(function(step) {
-            return fs.readFileAsync(flayout).then(extractMeta).then(function(layout) {
-                var template = jade.compile(layout.body);
-                var body = template({document: step.meta, content: step.body});
-                return { body: body, meta: step.meta };
-            });
+    var complete = Promise.cast(input.then(getLayoutList))
+    .reduce(function(step, flayout) {
+        return fs.readFileAsync(flayout).then(extractMeta).then(function(layout) {
+            var template = jade.compile(layout.body);
+            var body = template({document: step.meta, content: step.body});
+            return { body: body, meta: step.meta };
         });
     }, Promise.cast(initialDoc));
     return complete.then(function(data) {
