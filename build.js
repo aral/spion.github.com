@@ -20,7 +20,7 @@ exports.default = function(spec) {
     spec.with('tmp/**/*.html').each(function(file) {
         spec.rule(file, layoutsOf(file), file.map(function(name) {
             return name.replace('tmp/', 'tmp2/');
-        }), applyLayout);
+        }), applyLayouts);
     });
 
 }
@@ -78,22 +78,19 @@ function getLayoutList(data) {
             return [thisone].concat(list);
         });
     }
-    else { 
-        console.log("no more layouts");
-        return [];
-    }
+    else return [];
 }
 
 // Layout application operation
-var jade = require('jade'), xtend = require('xtend');
-function applyLayout(inputs) {   
+var jade = require('jade');
+function applyLayouts(inputs) {   
     var input = inputs[0].asBuffer(),
         initialBody = input.then(extractMeta);
     return input.then(getLayoutList).reduce(function(step, layout) {
         return fs.readFileAsync(layout).then(extractMeta).then(function(layout) {
             var template = jade.compile(layout.body);
             return { 
-                body: template(xtend(step.meta, {content: step.body})),
+                body: template({document: step.meta, content: step.body}),
                 layout: layout.meta.body
             };
         });
