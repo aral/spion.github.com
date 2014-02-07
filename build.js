@@ -10,22 +10,19 @@ var fs = require('fs');
 Promise.promisifyAll(fs);
 
 
-function markdown(options) { 
-    return function (data) {
-        if (!data || !data.body) return;
-        if (options) marked.setOptions(options);
-        return marked(data.body.toString());
-    }
-}
+// The default rule.
+exports.default = function(spec) {
+    spec.with('src/documents/**/*.md').each(function(file) {
+        spec.rule(file, file.map(function(name) { 
+            return name.replace(/src\/documents\/(.+)\.md/, 'tmp/$1');
+        }), meta(markdown()));
+    });
+    spec.with('tmp/**/*.html').each(function(file) {
+        spec.rule(file, layoutsOf(file), file.map(function(name) {
+            return name.replace('tmp/', 'tmp2/');
+        }), applyLayout);
+    });
 
-
-function extractMeta(inp) {
-    var metaBody = inp.toString().split(/--[-]+[\r\n]*/);
-return {
-    parts: metaBody,
-    meta: yaml.safeLoad(metaBody[1]),
-    body: metaBody[2]
-}
 }
 
 function meta(processor) {
@@ -42,6 +39,33 @@ function meta(processor) {
     }
 }
 
+function extractMeta(inp) {
+    var metaBody = inp.toString().split(/--[-]+[\r\n]*/);
+    return {
+        parts: metaBody,
+        meta: yaml.safeLoad(metaBody[1]),
+        body: metaBody[2]
+    }
+}
+
+function markdown(options) { 
+    return function (data) {
+        if (!data || !data.body) return;
+        if (options) marked.setOptions(options);
+        return marked(data.body.toString());
+    }
+}
+
+
+// Lazy layouts
+function layoutsOf(file) {
+    return function() {
+        return file.inspect().asBuffer().then(getLayoutList);
+    }
+}
+
+
+// Recursive layout fetcher
 function getLayoutList(data) {
     data = extractMeta(data);
     if (data.meta.layout) {
@@ -55,15 +79,8 @@ function getLayoutList(data) {
     else return [];
 }
 
-function layoutsOf(file) {
-    return function() {
-        return file.inspect().asBuffer().then(getLayoutList);
-    }
-}
-
-
+// Layout application operation
 var jade = require('jade'), xtend = require('xtend');
-
 function applyLayout(inputs) {   
     var input = inputs[0].asBuffer(),
         initialBody = input.then(extractMeta);
@@ -78,19 +95,6 @@ function applyLayout(inputs) {
     }, initialBody);
 }
 
-// The default rule.
-exports.default = function(spec) {
-    spec.with('src/documents/**/*.md').each(function(file) {
-        spec.rule(file, file.map(function(name) { 
-            return name.replace(/src\/documents\/(.+)\.md/, 'tmp/$1');
-        }), meta(markdown()));
-    });
-    spec.with('tmp/**/*.html').each(function(file) {
-        spec.rule(file, layoutsOf(file), file.map(function(name) {
-            return name.replace('tmp/', 'tmp2/');
-        }), applyLayout);
-    });
-
-}
-
+// Fez it!
 fez(module);
+
