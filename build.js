@@ -85,16 +85,19 @@ function getLayoutList(data) {
 var jade = require('jade');
 function applyLayouts(inputs) {   
     var input = inputs[0].asBuffer(),
-        initialBody = input.then(extractMeta);
-    return input.then(getLayoutList).reduce(function(step, layout) {
-        return fs.readFileAsync(layout).then(extractMeta).then(function(layout) {
-            var template = jade.compile(layout.body);
-            return { 
-                body: template({document: step.meta, content: step.body}),
-                layout: layout.meta.body
-            };
+    initialDoc = input.then(extractMeta);
+    var complete = input.then(getLayoutList).reduce(function(step, flayout) {
+        return step.then(function(step) {
+            return fs.readFileAsync(flayout).then(extractMeta).then(function(layout) {
+                var template = jade.compile(layout.body);
+                var body = template({document: step.meta, content: step.body});
+                return { body: body, meta: step.meta };
+            });
         });
-    }, initialBody);
+    }, Promise.cast(initialDoc));
+    return complete.then(function(data) {
+        return data.body;
+    });
 }
 
 // Fez it!
