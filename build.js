@@ -70,13 +70,16 @@ function getLayoutList(data) {
     data = extractMeta(data);
     if (data.meta.layout) {
         var thisone = 'src/layouts/' + data.meta.layout + '.html.jade';
-        var others = fs.readFileAsync(thisone)
-            .then(getLayoutList)
-            .then(function(list) {
-                return [thisone].concat(list);
-            });
+        return fs.readFileAsync(thisone)
+        .then(getLayoutList)
+        .then(function(list) {
+            return [thisone].concat(list);
+        });
     }
-    else return [];
+    else { 
+        console.log("no more layouts");
+        return [];
+    }
 }
 
 // Layout application operation
