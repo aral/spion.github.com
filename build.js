@@ -13,17 +13,21 @@ Promise.promisifyAll(fs);
 // The default rule.
 exports.default = function(spec) {
     spec.with('src/documents/**/*.md').each(function(file) {
-        spec.rule(file, 
+        spec.rule(file,
                   file.map(replacer(/src\/documents\/(.+)\.md/, 'tmp/$1')),
                   meta(markdown()));
     });
     spec.with('tmp/**/*.html').each(function(file) {
-        spec.rule(file, layoutsOf(file), 
-                  file.map(replacer('tmp/', 'tmp2/')), 
+        spec.rule(file, layoutsOf(file),
+                  file.map(replacer('tmp/', 'tmp2/')),
                   applyLayouts);
+    });
+    spec.with(['src/documents/index.html.jade','tmp/**/*.html']).all(function(files) {
+        spec.rule(files, 'tmp/index.html', buildIndex);
     });
 
 }
+
 
 function replacer(match, replace) {
     return function(string) {
@@ -56,7 +60,7 @@ function extractMeta(inp) {
     }
 }
 
-function markdown(options) { 
+function markdown(options) {
     return function (data) {
         if (!data || !data.body) return;
         if (options) marked.setOptions(options);
@@ -89,7 +93,7 @@ function getLayoutList(data) {
 
 // Layout application operation
 var jade = require('jade');
-function applyLayouts(inputs) {   
+function applyLayouts(inputs) {
     var input = inputs[0].asBuffer(),
     initialDoc = input.then(extractMeta);
     var complete = Promise.cast(input.then(getLayoutList))
@@ -104,6 +108,20 @@ function applyLayouts(inputs) {
         return data.body;
     });
 }
+
+function buildIndex(inputs) {
+    Promise.map(inputs, function(i) {
+        return i.asBuffer().then(extractMeta);
+    }).then(function(all) {
+        var tmpl = all[0];
+        var template = jade.compile(tmpl.body);
+        var body = template({
+            document: tmpl.meta,
+            posts: all.slice(1)
+        });
+    });
+}
+
 
 // Fez it!
 fez(module);
