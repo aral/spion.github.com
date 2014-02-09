@@ -9,7 +9,6 @@ var yaml = require('js-yaml');
 var fs = require('fs');
 Promise.promisifyAll(fs);
 
-
 // The default rule.
 exports.default = function(spec) {
     spec.with('src/documents/**/*.md').each(function(file) {
@@ -22,8 +21,9 @@ exports.default = function(spec) {
                   file.map(replacer('tmp/', 'tmp2/')),
                   applyLayouts);
     });
-    spec.with(['src/documents/index.html.jade','tmp/**/*.html']).all(function(files) {
-        spec.rule(files, 'tmp/index.html', buildIndex);
+    // Main posts page
+    spec.with(['src/documents/index.html.jade','tmp/posts/*.html']).all(function(files) {
+        spec.rule(files, 'tmp/index.html', buildIndex('src/documents/index.html.jade', 'tmp/'));
     });
 
 }
@@ -109,19 +109,36 @@ function applyLayouts(inputs) {
     });
 }
 
-function buildIndex(inputs) {
-    Promise.map(inputs, function(i) {
-        return i.asBuffer().then(extractMeta);
-    }).then(function(all) {
-        var tmpl = all[0];
-        var template = jade.compile(tmpl.body);
-        var body = template({
-            document: tmpl.meta,
-            posts: all.slice(1)
-        });
-    });
+var _ = require('lodash');
+
+function attachRelativeUrl(filename, basepath) {
+    return function(item) {
+        item.url = filename.replace(basepath, '');
+        return item;
+    }
 }
 
+function buildIndex(name, tmpdir) {
+    function condition(f) { return f.getFilename() == name; }
+    return function builder(inputs) {
+        var whichTemplate = _.findIndex(inputs, condition);
+        if (whichTemplate === -1)
+            throw new Error("Cannot find file " + name);
+        return Promise.map(inputs, function(i) {
+            return i.asBuffer()
+            .then(extractMeta)
+            .then(attachUrl(i.getFilename(), tmpdir));
+        }).then(function(all) {
+            var templateData = all[whichTemplate];
+            all.splice(whichTemplate, 1);
+            var template = jade.compile(templateData.body);
+            return template({
+                document: templateData.meta,
+                items: all,
+            });
+        });
+    }
+}
 
 // Fez it!
 fez(module);
